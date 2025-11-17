@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Estoque - Mev Glass OS</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+<h1><a href="{{ url_for('inicio_page') }}">prodmanager</a></h1>
+  <nav>
+    <a href="{{ url_for('produtos_page') }}">Produtos</a>
+    <a href="{{ url_for('clientes_page') }}">Clientes</a>
+    <a href="{{url_for('lista_cliente_page')}}">lista clientes</a>
+    <a href="{{ url_for('estoque_page') }}">Estoque</a>
+    <a href="{{ url_for('faturamento_page') }}">Faturamento</a>
+  </nav>
+</header>
+
+<main>
+  <section>
+    <h2>Controle de Estoque</h2>
+    <table id="estoque-table">
+      <thead><tr><th>Nome</th><th>Formato</th><th>Preço</th><th>Quantidade</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+</main>
+
+<script>
+  let produtos = JSON.parse(localStorage.getItem('produtos') || '[]');
+
+  function updateEstoqueTable() {
+    const tbody = document.querySelector('#estoque-table tbody');
+    tbody.innerHTML = '';
+
+    produtos.forEach((p, index) => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${p.nome}</td>
+        <td>${p.formato}</td>
+        <td>R$ ${p.preco.toFixed(2)}</td>
+        <td>${p.estoque}</td>
+      `;
+
+      // Duplo clique para excluir produto
+      row.addEventListener('dblclick', () => {
+        if (confirm(`Deseja remover o produto "${p.nome}" do estoque?`)) {
+          excluirProduto(index);
+        }
+      });
+
+      tbody.appendChild(row);
+    });
+
+    localStorage.setItem('produtos', JSON.stringify(produtos));
+  }
+
+  function excluirProduto(index) {
+    // Remove faturamentos relacionados ao produto
+    let faturamentos = JSON.parse(localStorage.getItem('faturamentos') || '[]');
+    faturamentos = faturamentos.filter(f => f.produto !== index);
+
+    faturamentos = faturamentos.map(f => {
+      if (f.produto > index) f.produto -= 1;
+      return f;
+    });
+
+    localStorage.setItem('faturamentos', JSON.stringify(faturamentos));
+    produtos.splice(index, 1);
+    updateEstoqueTable();
+  }
+
+  updateEstoqueTable();
+</script>
+</body>
+</html>

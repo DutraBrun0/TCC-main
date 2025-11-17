@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Clientes - Mev Glass OS</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+<h1><a href="{{ url_for('inicio_page') }}">prodmanager</a></h1>
+  <nav>
+    <a href="{{ url_for('produtos_page') }}">Produtos</a>
+    <a href="{{ url_for('clientes_page') }}">Clientes</a>
+    <a href="{{url_for('lista_cliente_page')}}">lista clientes</a>
+    <a href="{{ url_for('estoque_page') }}">Estoque</a>
+    <a href="{{ url_for('faturamento_page') }}">Faturamento</a>
+    
+  </nav>
+</header>
+
+<main>
+  <section>
+    <h2>Cadastro de Clientes</h2>
+    <form id="cliente-form">
+      <input type="text" id="cliente-nome" placeholder="Nome do Cliente" required>
+      <input type="email" id="cliente-email" placeholder="Email" required>
+      <button type="submit">Cadastrar Cliente</button>
+    </form>
+  </section>
+</main>
+
+<script>
+  // Recupera lista existente ou cria nova
+  let clientes = JSON.parse(localStorage.getItem('clientes') || '[]');
+
+  document.getElementById('cliente-form').addEventListener('submit', e => {
+    e.preventDefault();
+
+    const nome = document.getElementById('cliente-nome').value.trim();
+    const email = document.getElementById('cliente-email').value.trim();
+
+    if (!nome || !email) {
+      alert("Preencha todos os campos corretamente.");
+      return;
+    }
+
+    clientes.push({ nome, email });
+    localStorage.setItem('clientes', JSON.stringify(clientes));
+
+    // Alerta estilizado
+    alert(`✅ Cliente "${nome}" cadastrado com sucesso!`);
+
+    e.target.reset();
+  });
+</script>
+</body>
+</html>

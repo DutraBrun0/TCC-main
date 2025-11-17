@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Produtos - Mev Glass OS</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+<h1><a href="{{ url_for('inicio_page') }}">prodmanager</a></h1>
+  <nav>
+    <a href="{{ url_for('produtos_page') }}">Produtos</a>
+    <a href="{{ url_for('clientes_page') }}">Clientes</a>
+    <a href="{{url_for('lista_cliente_page')}}">lista clientes</a>
+    <a href="{{ url_for('estoque_page') }}">Estoque</a>
+    <a href="{{ url_for('faturamento_page') }}">Faturamento</a>
+    
+  </nav>
+</header>
+
+<main>
+  <section>
+    <h2>Cadastro de Produtos</h2>
+    <form id="produto-form">
+      <input type="text" id="produto-nome" placeholder="Nome do Espelho" required>
+      <input type="text" id="produto-formato" placeholder="Formato do Espelho" required>
+      <input type="number" id="produto-preco" placeholder="Preço" step="0.01" required>
+      <input type="number" id="produto-estoque" placeholder="Quantidade em Estoque (mín 5)" min="5" required>
+      <button type="submit">Cadastrar Produto</button>
+    </form>
+  </section>
+</main>
+
+<script>
+  // Recupera lista atual de produtos ou cria uma nova
+  let produtos = JSON.parse(localStorage.getItem('produtos') || '[]');
+
+  // Atualiza o localStorage
+  function salvarProdutos() {
+    localStorage.setItem('produtos', JSON.stringify(produtos));
+  }
+
+  // Função de cadastro
+  document.getElementById('produto-form').addEventListener('submit', e => {
+    e.preventDefault();
+    
+    const nome = document.getElementById('produto-nome').value.trim();
+    const formato = document.getElementById('produto-formato').value.trim();
+    const preco = parseFloat(document.getElementById('produto-preco').value);
+    const estoque = parseInt(document.getElementById('produto-estoque').value);
+
+    if (!nome || !formato || isNaN(preco) || isNaN(estoque)) {
+      alert("Preencha todos os campos corretamente.");
+      return;
+    }
+
+    if (estoque < 5) {
+      alert("A quantidade mínima em estoque é 5.");
+      return;
+    }
+
+    produtos.push({ nome, formato, preco, estoque });
+    salvarProdutos();
+
+    // Mostra alerta de sucesso com estilo simples
+    alert(`✅ Produto "${nome}" cadastrado com sucesso!`);
+
+    // Limpa o formulário
+    e.target.reset();
+  });
+</script>
+</body>
+</html>
