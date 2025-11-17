@@ -4,7 +4,16 @@
 <meta charset="UTF-8">
 <title>Produtos - Mev Glass OS</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+  .variant-box { border:1px solid #ccc; padding:10px; margin-top:10px; border-radius:5px; }
+  .variant-row { display:flex; gap:10px; margin-bottom:8px; }
+  .variant-row input { width:100%; }
+  .remove-btn { background:red; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; }
+  .add-btn { background:#4CAF50; color:white; padding:6px 12px; border:none; border-radius:5px; cursor:pointer; }
+  button { cursor: pointer; }
+</style>
 </head>
+
 <body>
 <header>
 <h1><a href="{{ url_for('inicio_page') }}">prodmanager</a></h1>
@@ -14,60 +23,121 @@
     <a href="{{url_for('lista_cliente_page')}}">lista clientes</a>
     <a href="{{ url_for('estoque_page') }}">Estoque</a>
     <a href="{{ url_for('faturamento_page') }}">Faturamento</a>
-    
   </nav>
 </header>
 
 <main>
-  <section>
-    <h2>Cadastro de Produtos</h2>
-    <form id="produto-form">
-      <input type="text" id="produto-nome" placeholder="Nome do Espelho" required>
-      <input type="text" id="produto-formato" placeholder="Formato do Espelho" required>
-      <input type="number" id="produto-preco" placeholder="Preço" step="0.01" required>
-      <input type="number" id="produto-estoque" placeholder="Quantidade em Estoque (mín 5)" min="5" required>
-      <button type="submit">Cadastrar Produto</button>
-    </form>
-  </section>
+<section>
+  <h2>Cadastro de Produtos com Variantes (SKU)</h2>
+
+  <form id="produto-form">
+    <input type="text" id="produto-linha" placeholder="Nome da Linha (Ex: Espelho Prime)" required>
+    <input type="text" id="produto-formato" placeholder="Formato (Ex: Redondo / Retangular)" required>
+    <textarea id="produto-descricao" placeholder="Descrição do produto"></textarea>
+    <input type="text" id="produto-imagem" placeholder="URL da imagem (opcional)">
+
+    <h3>Variantes</h3>
+    <div id="variant-list"></div>
+
+    <button type="button" class="add-btn" id="add-variant">+ Adicionar Variante</button>
+
+    <br><br>
+    <button type="submit">Cadastrar Produto</button>
+  </form>
+
+  <div id="resultado" style="margin-top:20px; white-space:pre; font-family:monospace;"></div>
+</section>
 </main>
 
 <script>
-  // Recupera lista atual de produtos ou cria uma nova
-  let produtos = JSON.parse(localStorage.getItem('produtos') || '[]');
+let variantes = [];
 
-  // Atualiza o localStorage
-  function salvarProdutos() {
-    localStorage.setItem('produtos', JSON.stringify(produtos));
-  }
+document.getElementById("add-variant").addEventListener("click", () => {
+  const id = Date.now();
+  variantes.push(id);
+  renderVariantes();
+});
 
-  // Função de cadastro
-  document.getElementById('produto-form').addEventListener('submit', e => {
-    e.preventDefault();
-    
-    const nome = document.getElementById('produto-nome').value.trim();
-    const formato = document.getElementById('produto-formato').value.trim();
-    const preco = parseFloat(document.getElementById('produto-preco').value);
-    const estoque = parseInt(document.getElementById('produto-estoque').value);
+function renderVariantes() {
+  const container = document.getElementById("variant-list");
+  container.innerHTML = "";
 
-    if (!nome || !formato || isNaN(preco) || isNaN(estoque)) {
-      alert("Preencha todos os campos corretamente.");
-      return;
-    }
+  variantes.forEach(id => {
+    const box = document.createElement("div");
+    box.className = "variant-box";
+    box.innerHTML = `
+      <div class="variant-row">
+        <input placeholder="Altura (cm)" class="altura" data-id="${id}">
+        <input placeholder="Largura (cm)" class="largura" data-id="${id}">
+        <input placeholder="Cor (Ex: Branco, Preto)" class="cor" data-id="${id}">
+      </div>
+     <div class="variant-row">
+  <input placeholder="Moldura (Ex: Sem, Alumínio)" class="moldura" data-id="${id}">
+  <input placeholder="Preço Base" class="preco" type="number" step="0.01" data-id="${id}">
+  <input placeholder="Estoque Inicial" class="estoque" type="number" data-id="${id}">
+</div>
 
-    if (estoque < 5) {
-      alert("A quantidade mínima em estoque é 5.");
-      return;
-    }
+<div class="variant-row">
+  <label><input type="checkbox" class="led_direto" data-id="${id}"> LED Direto</label>
+  <label><input type="checkbox" class="led_indireto" data-id="${id}"> LED Indireto</label>
+</div>
 
-    produtos.push({ nome, formato, preco, estoque });
-    salvarProdutos();
-
-    // Mostra alerta de sucesso com estilo simples
-    alert(`✅ Produto "${nome}" cadastrado com sucesso!`);
-
-    // Limpa o formulário
-    e.target.reset();
+      <button class="remove-btn" onclick="removeVariante(${id})">Remover variante</button>
+    `;
+    container.appendChild(box);
   });
+}
+
+function removeVariante(id) {
+  variantes = variantes.filter(v => v !== id);
+  renderVariantes();
+}
+
+document.getElementById("produto-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const linha = document.getElementById("produto-linha").value;
+  const formato = document.getElementById("produto-formato").value;
+  const descricao = document.getElementById("produto-descricao").value;
+  const imagem_url = document.getElementById("produto-imagem").value;
+
+  let variantsData = [];
+  document.querySelectorAll(".variant-box").forEach(box => {
+    variantsData.push({
+  altura_cm: parseFloat(box.querySelector(".altura").value) || null,
+  largura_cm: parseFloat(box.querySelector(".largura").value) || null,
+  cor: box.querySelector(".cor").value || null,
+  moldura: box.querySelector(".moldura").value || null,
+  preco_base: parseFloat(box.querySelector(".preco").value) || 0,
+  estoque_inicial: parseInt(box.querySelector(".estoque").value) || 0,
+  led_direto: box.querySelector(".led_direto").checked,
+  led_indireto: box.querySelector(".led_indireto").checked
+});
+  });
+
+  const payload = {
+    linha,
+    formato,
+    descricao,
+    imagem_url,
+    variantes: variantsData
+  };
+
+  const req = await fetch("/produto/variantes", {
+    method: "POST",
+    headers: { "Content-Type":"application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  const res = await req.json();
+  document.getElementById("resultado").textContent = JSON.stringify(res, null, 2);
+
+  alert("Produto cadastrado com sucesso!");
+  e.target.reset();
+  variantes = [];
+  renderVariantes();
+});
 </script>
+
 </body>
 </html>

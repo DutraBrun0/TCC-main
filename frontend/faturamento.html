@@ -20,77 +20,106 @@
   <section>
     <h2>Registrar Venda</h2>
     <form id="faturamento-form">
-      <select id="fatura-cliente" required></select>
-      <select id="fatura-produto" required></select>
-      <input type="number" id="fatura-quantidade" placeholder="Quantidade" required>
+      <select id="fatura-cliente" required><option>Carregando clientes...</option></select>
+      <select id="fatura-produto" required><option>Carregando produtos...</option></select>
+      <input type="number" id="fatura-quantidade" placeholder="Quantidade" min="1" required>
       <button type="submit">Registrar Venda</button>
     </form>
 
     <h3>Faturamentos</h3>
     <table id="faturamento-table">
-      <thead><tr><th>Cliente</th><th>Produto</th><th>Quantidade</th><th>Total</th><th>Ação</th></tr></thead>
+      <thead><tr><th>Pedido ID</th><th>Cliente</th><th>Produto (SKU)</th><th>Quantidade</th><th>Total</th><th>Ação</th></tr></thead>
       <tbody></tbody>
     </table>
   </section>
 </main>
 
 <script>
-    let produtos = JSON.parse(localStorage.getItem('produtos') || '[]');
-let clientes = JSON.parse(localStorage.getItem('clientes') || '[]');
-let faturamentos = JSON.parse(localStorage.getItem('faturamentos') || '[]');
+async function carregarDados() {
+    // Carrega clientes
+    const clientes = await fetch("/api/clientes").then(r => r.json());
+    const produtos = await fetch("/produto/catalogo").then(r => r.json());
 
-function updateFaturamentoSelects() {
-  const clienteSelect = document.getElementById('fatura-cliente');
-  const produtoSelect = document.getElementById('fatura-produto');
-  clienteSelect.innerHTML = '<option value="">Selecione Cliente</option>';
-  produtoSelect.innerHTML = '<option value="">Selecione Produto</option>';
-  clientes.forEach((c,i)=> clienteSelect.innerHTML += `<option value="${i}">${c.nome}</option>`);
-  produtos.forEach((p,i)=> produtoSelect.innerHTML += `<option value="${i}">${p.nome}</option>`);
+    const clienteSelect = document.getElementById("fatura-cliente");
+    const produtoSelect = document.getElementById("fatura-produto");
+
+    clienteSelect.innerHTML = "<option value=''>Selecione Cliente</option>";
+    produtoSelect.innerHTML = "<option value=''>Selecione Variante</option>";
+
+    clientes.forEach(c => {
+        clienteSelect.innerHTML += `<option value="${c.id}">${c.nome}</option>`;
+    });
+
+    produtos.forEach(p => {
+        produtoSelect.innerHTML += `
+            <option value="${p.variante_id}" data-estoque="${p.estoque}" data-preco="${p.preco_base}">
+                ${p.linha} ${p.formato} (${p.sku}) - Estoque: ${p.estoque}
+            </option>
+        `;
+    });
 }
 
-function updateFaturamentoTable() {
-  const tbody = document.querySelector('#faturamento-table tbody');
-  tbody.innerHTML = '';
-  faturamentos.forEach((f,index)=>{
-    tbody.innerHTML += `<tr>
-      <td>${clientes[f.cliente].nome}</td>
-      <td>${produtos[f.produto].nome}</td>
-      <td>${f.quantidade}</td>
-      <td>${f.total.toFixed(2)}</td>
-      <td><button onclick="removerFaturamento(${index})">Remover</button></td>
-    </tr>`;
-  });
-}
+document.getElementById("faturamento-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
 
-function removerFaturamento(index){
-  const f = faturamentos[index];
-  produtos[f.produto].estoque += f.quantidade;
-  faturamentos.splice(index,1);
-  localStorage.setItem('faturamentos', JSON.stringify(faturamentos));
-  localStorage.setItem('produtos', JSON.stringify(produtos));
-  updateFaturamentoTable();
-}
+    const cliente = document.getElementById("fatura-cliente").value;
+    const produto = document.getElementById("fatura-produto");
+    const variante_id = produto.value;
+    const quantidade = parseInt(document.getElementById("fatura-quantidade").value);
 
-document.getElementById('faturamento-form').addEventListener('submit', e=>{
-  e.preventDefault();
-  const cliente = parseInt(document.getElementById('fatura-cliente').value);
-  const produto = parseInt(document.getElementById('fatura-produto').value);
-  const quantidade = parseInt(document.getElementById('fatura-quantidade').value);
-  const total = produtos[produto].preco * quantidade;
+    const estoqueDisponivel = parseInt(produto.selectedOptions[0].dataset.estoque);
+    const precoUnit = parseFloat(produto.selectedOptions[0].dataset.preco.replace(",", "."));
+    // 🚨 BLOQUEIA VENDA MAIOR QUE O ESTOQUE
+    if (quantidade > estoqueDisponivel) {
+        alert(`❌ Estoque insuficiente.\nDisponível: ${estoqueDisponivel}\nSolicitado: ${quantidade}`);
+        return;
+    }
 
-  faturamentos.push({cliente, produto, quantidade, total});
-  localStorage.setItem('faturamentos', JSON.stringify(faturamentos));
+    const payload = {
+        cliente_id: cliente,
+        itens: [{
+            variante_id: variante_id,
+            quantidade: quantidade,
+            preco_unit: precoUnit
+        }]
+    };
 
-  produtos[produto].estoque -= quantidade;
-  localStorage.setItem('produtos', JSON.stringify(produtos));
+    const resposta = await fetch("/pedido/criar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
 
-  updateFaturamentoTable();
-  updateFaturamentoSelects();
-  e.target.reset();
+    const data = await resposta.json();
+
+    if (data.error) {
+        alert("❌ Erro: " + data.error);
+        return;
+    }
+
+    alert(`✔ Venda registrada!\nTotal: R$ ${data.total}`);
+
+    carregarDados();
+    carregarTabelaFaturamentos();
+    e.target.reset();
 });
 
-updateFaturamentoSelects();
-updateFaturamentoTable();
+document.getElementById("fatura-produto").addEventListener("change", () => {
+    const produto = document.getElementById("fatura-produto");
+    const estoque = produto.selectedOptions[0].dataset.estoque;
+    const btn = document.querySelector("button[type='submit']");
+
+    if (estoque <= 0) {
+        btn.disabled = true;
+        btn.innerText = "Sem estoque";
+        btn.style.background = "#888";
+    } else {
+        btn.disabled = false;
+        btn.innerText = "Registrar Venda";
+        btn.style.background = "";
+    }
+});
+carregarDados();
 </script>
 </body>
 </html>

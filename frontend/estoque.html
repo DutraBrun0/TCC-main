@@ -4,7 +4,15 @@
 <meta charset="UTF-8">
 <title>Estoque - Mev Glass OS</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+  table { width:100%; border-collapse: collapse; margin-top:15px; }
+  th, td { border:1px solid #ddd; padding:8px; text-align:left; }
+  th { background:#f3f3f3; }
+  .estoque-input { width:70px; }
+  button { cursor:pointer; }
+</style>
 </head>
+
 <body>
 <header>
 <h1><a href="{{ url_for('inicio_page') }}">prodmanager</a></h1>
@@ -18,60 +26,104 @@
 </header>
 
 <main>
-  <section>
-    <h2>Controle de Estoque</h2>
-    <table id="estoque-table">
-      <thead><tr><th>Nome</th><th>Formato</th><th>Preço</th><th>Quantidade</th></tr></thead>
-      <tbody></tbody>
-    </table>
-  </section>
+<section>
+  <h2>Controle de Estoque por SKU</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>SKU</th>
+        <th>Produto</th>
+        <th>Dimensões</th>
+        <th>Cor / Moldura</th>
+        <th>Preço Base</th>
+        <th>Quantidade</th>
+        <th>Entrada</th>
+        <th>Saída</th>
+      </tr>
+    </thead>
+    <tbody id="tabela-estoque"></tbody>
+  </table>
+</section>
 </main>
 
 <script>
-  let produtos = JSON.parse(localStorage.getItem('produtos') || '[]');
+async function carregarEstoque() {
+  const req = await fetch("/estoque/variantes");
+  const data = await req.json();
 
-  function updateEstoqueTable() {
-    const tbody = document.querySelector('#estoque-table tbody');
-    tbody.innerHTML = '';
+  const tbody = document.getElementById("tabela-estoque");
+  tbody.innerHTML = "";
 
-    produtos.forEach((p, index) => {
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>${p.nome}</td>
-        <td>${p.formato}</td>
-        <td>R$ ${p.preco.toFixed(2)}</td>
-        <td>${p.estoque}</td>
-      `;
+  data.forEach(v => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${v.sku}</td>
+      <td>${v.produto_id}</td>
+      <td>${v.altura_cm || ""} x ${v.largura_cm || ""}</td>
+      <td>${v.cor || ""} / ${v.moldura || ""}</td>
+      <td>R$ ${v.preco_base}</td>
+      <td id="qtd-${v.variante_id}">${v.estoque}</td>
+      
+      <td>
+        <input id="in-${v.variante_id}" class="estoque-input" type="number">
+        <button onclick="entrada(${v.variante_id})">OK</button>
+      </td>
+      
+      <td>
+        <input id="out-${v.variante_id}" class="estoque-input" type="number">
+        <button onclick="saida(${v.variante_id})">OK</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
 
-      // Duplo clique para excluir produto
-      row.addEventListener('dblclick', () => {
-        if (confirm(`Deseja remover o produto "${p.nome}" do estoque?`)) {
-          excluirProduto(index);
-        }
-      });
+async function entrada(variante_id) {
+  const qtd = parseInt(document.getElementById(`in-${variante_id}`).value);
+  if (!qtd || qtd <= 0) return alert("Quantidade inválida.");
 
-      tbody.appendChild(row);
-    });
+  const req = await fetch("/estoque/entrada_sku", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      variante_id,
+      quantidade: qtd,
+      usuario_id: 1,
+      motivo: "Entrada manual"
+    })
+  });
 
-    localStorage.setItem('produtos', JSON.stringify(produtos));
-  }
+  const res = await req.json();
+  if (res.status === "ok") {
+    document.getElementById(`qtd-${variante_id}`).textContent = res.estoque_atual;
+    document.getElementById(`in-${variante_id}`).value = "";
+  } else alert(res.mensagem);
+}
 
-  function excluirProduto(index) {
-    // Remove faturamentos relacionados ao produto
-    let faturamentos = JSON.parse(localStorage.getItem('faturamentos') || '[]');
-    faturamentos = faturamentos.filter(f => f.produto !== index);
+async function saída(variante_id) {
+  const qtd = parseInt(document.getElementById(`out-${variante_id}`).value);
+  if (!qtd || qtd <= 0) return alert("Quantidade inválida.");
 
-    faturamentos = faturamentos.map(f => {
-      if (f.produto > index) f.produto -= 1;
-      return f;
-    });
+  const req = await fetch("/estoque/saida_sku", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      variante_id,
+      quantidade: qtd,
+      usuario_id: 1,
+      motivo: "Saída manual"
+    })
+  });
 
-    localStorage.setItem('faturamentos', JSON.stringify(faturamentos));
-    produtos.splice(index, 1);
-    updateEstoqueTable();
-  }
+  const res = await req.json();
+  if (res.status === "ok") {
+    document.getElementById(`qtd-${variante_id}`).textContent = res.estoque_atual;
+    document.getElementById(`out-${variante_id}`).value = "";
+  } else alert(res.mensagem);
+}
 
-  updateEstoqueTable();
+carregarEstoque();
 </script>
 </body>
 </html>
