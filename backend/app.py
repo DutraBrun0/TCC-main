@@ -401,25 +401,38 @@ def api_clientes():
 def criar_pedido():
     data = request.get_json()
 
-    cliente_id = data.get("cliente_id")
+    # 1. AGORA ACEITAMOS O NOME (Vindo do LocalStorage)
+    # Em vez de buscar 'cliente_id', buscamos 'cliente_nome'
+    cliente_nome = data.get("cliente_nome")
+    
+    # Fallback: Se por acaso vier um ID (sistema antigo), converte para string
+    if not cliente_nome and data.get("cliente_id"):
+        cliente_nome = f"Cliente ID {data.get('cliente_id')}"
+
     itens = data.get("itens", [])
 
-    if not cliente_id:
-        return jsonify({"error": "cliente_id obrigatório"}), 400
+    # Validação atualizada
+    if not cliente_nome:
+        return jsonify({"error": "Nome do cliente é obrigatório"}), 400
     if not itens:
         return jsonify({"error": "Nenhum item no pedido"}), 400
 
+    # Define um usuário padrão (Admin) para o campo 'criado_por' 
+    # já que não estamos usando sistema complexo de login na venda
+    usuario_responsavel = 1 
+
     try:
+        # Cria o Pedido com o NOME
         pedido = Pedido(
-            cliente_nome="Cliente ID " + str(cliente_id),
+            cliente_nome=cliente_nome, 
             cliente_contato=None,
             status="criado",
             total=0,
-            criado_por=cliente_id
+            criado_por=usuario_responsavel
         )
 
         db.session.add(pedido)
-        db.session.flush()
+        db.session.flush() # Gera o ID do pedido
 
         total_geral = 0
 
@@ -428,20 +441,29 @@ def criar_pedido():
             quantidade = item.get("quantidade")
             preco_unit = item.get("preco_unit")
 
-            # Validação forte
-            if not variante_id:
-                return jsonify({"error": "variante_id faltando em um item"}), 400
-            if not quantidade:
-                return jsonify({"error": "quantidade inválida"}), 400
-            if int(quantidade) <= 0:
-                return jsonify({"error": "quantidade precisa ser > 0"}), 400
-            if not preco_unit:
-                return jsonify({"error": "preco_unit inválido"}), 400
+            # Validações do item
+            if not variante_id or not quantidade:
+                db.session.rollback()
+                return jsonify({"error": "Dados do item incompletos"}), 400
 
             quantidade = int(quantidade)
             preco_unit = float(preco_unit)
 
-            # Criar item
+            # Baixa de Estoque
+            estoque_registro = Estoque.query.filter_by(variante_id=variante_id).first()
+            
+            if not estoque_registro:
+                db.session.rollback()
+                return jsonify({"error": f"Estoque não encontrado para o item {variante_id}"}), 400
+
+            if estoque_registro.quantidade < quantidade:
+                db.session.rollback()
+                return jsonify({"error": f"Estoque insuficiente. Disponível: {estoque_registro.quantidade}"}), 400
+
+            estoque_registro.quantidade -= quantidade
+            db.session.add(estoque_registro)
+
+            # Cria item do pedido
             item_pedido = ItemPedido(
                 pedido_id=pedido.id,
                 variante_id=variante_id,
@@ -450,14 +472,6 @@ def criar_pedido():
                 valor_total=preco_unit * quantidade
             )
             db.session.add(item_pedido)
-
-            # 🔥 CHAMA A FUNÇÃO QUE REALMENTE ALTERA O ESTOQUE
-            registrar_saida_variante(
-                variante_id=variante_id,
-                quantidade=quantidade,
-                usuario_id=cliente_id,
-                motivo="Venda"
-            )
 
             total_geral += preco_unit * quantidade
 
@@ -473,7 +487,6 @@ def criar_pedido():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
-
 # -------------------
 # Listar pedidos (para faturamento / dashboard)
 # -------------------
@@ -507,7 +520,127 @@ def listar_pedidos():
 
     return jsonify(resultado)
 
+# COLAR ISSO NO FINAL DO SEU app.py (Antes do app.run)
 
+@app.route("/variante/excluir/<int:id>", methods=["DELETE"])
+def excluir_variante(id):
+    try:
+        # Busca a variante
+        variante = Variante.query.get(id)
+        if not variante:
+            return jsonify({"status": "erro", "mensagem": "Variante não encontrada"}), 404
+        
+        # Verifica se tem estoque ligado a ela e zera (opcional, mas recomendado)
+        if variante.estoque:
+            variante.estoque.quantidade = 0
+            
+        # Marca como inativo (Exclusão lógica)
+        variante.ativo = False
+        
+        db.session.commit()
+        
+        return jsonify({"status": "ok", "mensagem": "Produto removido com sucesso!"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "erro", "mensagem": str(e)}), 500
+        
+
+@app.route("/api/atividades_recentes")
+def api_atividades_recentes():
+    atividades = []
+
+    # Vendas
+    ultimos_pedidos = Pedido.query.order_by(Pedido.created_at.desc()).limit(50).all()
+    for p in ultimos_pedidos:
+        qtd_total = sum([i.quantidade for i in p.itens])
+        nome_exemplo = "Produtos diversos"
+        if p.itens:
+            primeiro_item = p.itens[0]
+            var = Variante.query.get(primeiro_item.variante_id)
+            if var and var.produto:
+                nome_exemplo = f"{var.produto.linha}"
+            else:
+                nome_exemplo = "(Produto Excluído)"
+
+        atividades.append({
+            "id": p.id,   # <--- IMPORTANTE: Agora enviamos o ID
+            "tipo": "venda",
+            "icone": "💰",
+            "titulo": "Venda Realizada",
+            "descricao": f"{nome_exemplo} (e mais itens...)",
+            "detalhe": f"{qtd_total} un. vendidas",
+            "data": p.created_at.isoformat()
+        })
+
+    # Produtos (Apenas ativos)
+    ultimos_produtos = Variante.query.filter_by(ativo=True).order_by(Variante.created_at.desc()).limit(50).all()
+    for v in ultimos_produtos:
+        nome_prod = "Produto"
+        prod = Produto.query.get(v.produto_id)
+        if prod:
+            nome_prod = f"{prod.linha} {prod.formato}"
+        
+        qtd_inicial = 0
+        if v.estoque:
+            qtd_inicial = v.estoque.quantidade
+
+        atividades.append({
+            "id": v.id, # <--- ID aqui também
+            "tipo": "cadastro",
+            "icone": "✨",
+            "titulo": "Novo Produto",
+            "descricao": f"{nome_prod} - {v.cor}",
+            "detalhe": f"Estoque inicial: {qtd_inicial}",
+            "data": v.created_at.isoformat()
+        })
+
+    atividades.sort(key=lambda x: x['data'], reverse=True)
+    return jsonify(atividades[:50])
+
+
+# 2. ADICIONE ESTA NOVA ROTA NO FINAL DO ARQUIVO (Para deletar a venda):
+@app.route("/pedido/excluir/<int:id>", methods=["DELETE"])
+def excluir_pedido(id):
+    try:
+        pedido = Pedido.query.get(id)
+        if not pedido:
+            return jsonify({"status": "erro", "mensagem": "Pedido não encontrado"}), 404
+        
+        # Primeiro deleta os itens do pedido
+        ItemPedido.query.filter_by(pedido_id=id).delete()
+        
+        # Depois deleta o pedido
+        db.session.delete(pedido)
+        db.session.commit()
+        
+        return jsonify({"status": "ok", "mensagem": "Venda excluída do histórico!"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "erro", "mensagem": str(e)}), 500
+
+# =====================================================
+# 🧹 ROTA PARA LIMPAR TODO O HISTÓRICO DE VENDAS
+# Use isso para zerar as notificações de vendas antigas
+# =====================================================
+@app.route("/admin/limpar_todas_vendas")
+def limpar_todas_vendas():
+    try:
+        # 1. Apagar todos os itens dos pedidos (tabela filha)
+        num_itens = db.session.query(ItemPedido).delete()
+        
+        # 2. Apagar todos os pedidos (tabela pai)
+        num_pedidos = db.session.query(Pedido).delete()
+        
+        # 3. Confirma a exclusão
+        db.session.commit()
+        
+        return jsonify({
+            "status": "ok", 
+            "mensagem": f"Limpeza concluída! {num_pedidos} pedidos e {num_itens} itens foram apagados."
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "erro", "mensagem": str(e)}), 500
 # -------------------
 # Run
 # -------------------

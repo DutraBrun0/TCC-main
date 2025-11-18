@@ -4,122 +4,365 @@
 <meta charset="UTF-8">
 <title>Faturamento - Mev Glass OS</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+    /* --- ESTILO CLEAN & SUAVE (Layout 2 Colunas) --- */
+    :root {
+        --bg-body: #f8fafc;
+        --bg-card: #ffffff;
+        --input-bg: #ffffff;
+        --border-subtle: #e2e8f0;
+        --text-main: #334155;
+        --text-muted: #64748b;
+        --primary: #0f172a; 
+        --blue-btn: #3b82f6;
+        --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        --success: #10b981;
+    }
+
+    body {
+        background-color: var(--bg-body);
+        color: var(--text-main);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        margin: 0;
+        padding-bottom: 60px;
+    }
+
+    header {
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border-subtle);
+        padding: 15px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    header h1 a { color: var(--primary); text-decoration: none; font-weight: 700; font-size: 1.2rem; }
+    nav a { color: var(--text-muted); text-decoration: none; margin-left: 20px; font-size: 0.9rem; transition: 0.2s; }
+    nav a:hover { color: var(--primary); }
+
+    /* Layout de Grade (Grid) para separar as áreas */
+    main {
+        max-width: 1200px;
+        margin: 40px auto;
+        padding: 0 20px;
+        display: grid;
+        grid-template-columns: 350px 1fr; /* Coluna fixa esquerda, resto direita */
+        gap: 30px;
+        align-items: start;
+    }
+
+    /* Estilo dos Cards */
+    .card {
+        background: var(--bg-card);
+        padding: 30px;
+        border-radius: 16px;
+        box-shadow: var(--shadow-md);
+        border: 1px solid var(--border-subtle);
+    }
+
+    h2, h3 { font-weight: 600; color: var(--primary); margin: 0 0 10px 0; font-size: 1.3rem; }
+    .subtitle { color: var(--text-muted); font-size: 0.85rem; display: block; margin-bottom: 20px; }
+
+    /* Inputs */
+    .form-group { margin-bottom: 20px; }
+    
+    label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; color: var(--text-main); }
+
+    select, input {
+        width: 100%;
+        padding: 12px 16px;
+        background-color: var(--bg-body);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        color: var(--text-main);
+        font-size: 0.95rem;
+        transition: all 0.2s ease;
+        box-sizing: border-box;
+    }
+    select:focus, input:focus {
+        background-color: #fff;
+        border-color: var(--blue-btn);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    /* Botão */
+    button[type="submit"] {
+        background-color: var(--primary);
+        color: white;
+        width: 100%;
+        padding: 14px;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 8px;
+        border: none;
+        margin-top: 10px;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+        cursor: pointer;
+        transition: transform 0.1s;
+    }
+    button[type="submit"]:hover {
+        background-color: #1e293b;
+        transform: translateY(-1px);
+    }
+    button:disabled { background-color: #cbd5e1; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* Tabela */
+    .table-wrapper { overflow-x: auto; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; }
+    
+    th {
+        padding: 12px 15px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        border-bottom: 2px solid var(--border-subtle);
+    }
+    td {
+        padding: 15px;
+        font-size: 0.9rem;
+        color: var(--text-main);
+        border-bottom: 1px solid #f1f5f9;
+        background-color: #fff;
+    }
+    
+    /* Tags Visuais */
+    .price-tag { font-weight: 700; color: var(--success); }
+    .id-tag { font-family: monospace; background: #f1f5f9; padding: 4px 8px; border-radius: 4px; color: var(--text-muted); font-size: 0.8rem; }
+    
+    /* Responsividade */
+    @media (max-width: 900px) {
+        main { grid-template-columns: 1fr; } /* Vira 1 coluna em telas menores */
+    }
+</style>
 </head>
 <body>
-<header>
- <h1><a href="{{ url_for('inicio_page') }}">prodmanager</a></h1>
-  <nav>
-    <a href="{{ url_for('produtos_page') }}">Produtos</a>
-    <a href="{{ url_for('clientes_page') }}">Cadastrar Cliente</a>
-    <a href="{{url_for('lista_cliente_page')}}">lista clientes</a>
-    <a href="{{ url_for('estoque_page') }}">Estoque</a>
-    <a href="{{ url_for('faturamento_page') }}">Faturamento</a>
-  </nav>
-</header>
-<main>
-  <section>
-    <h2>Registrar Venda</h2>
-    <form id="faturamento-form">
-      <select id="fatura-cliente" required><option>Carregando clientes...</option></select>
-      <select id="fatura-produto" required><option>Carregando produtos...</option></select>
-      <input type="number" id="fatura-quantidade" placeholder="Quantidade" min="1" required>
-      <button type="submit">Registrar Venda</button>
-    </form>
 
-    <h3>Faturamentos</h3>
-    <table id="faturamento-table">
-      <thead><tr><th>Pedido ID</th><th>Cliente</th><th>Produto (SKU)</th><th>Quantidade</th><th>Total</th><th>Ação</th></tr></thead>
-      <tbody></tbody>
-    </table>
-  </section>
+<header>
+    <h1><a href="{{ url_for('inicio_page') }}">prodmanager</a></h1>
+    <nav>
+        <a href="{{ url_for('produtos_page') }}">Produtos</a>
+        <a href="{{ url_for('clientes_page') }}">Cadastrar Cliente</a>
+        <a href="{{url_for('lista_cliente_page')}}">Lista Clientes</a>
+        <a href="{{ url_for('estoque_page') }}">Estoque</a>
+        <a href="{{ url_for('faturamento_page') }}">Faturamento</a>
+    </nav>
+</header>
+
+<main>
+    <div class="card">
+        <h2>Nova Venda</h2>
+        <span class="subtitle">Preencha os dados para lançar o pedido.</span>
+
+        <form id="faturamento-form">
+            <div class="form-group">
+                <label>Cliente</label>
+                <select id="fatura-cliente" required>
+                    <option value="">Carregando clientes...</option>
+                </select>
+                <small style="color:#999; font-size:0.8em;">*Clientes cadastrados na aba 'Clientes'</small>
+            </div>
+            
+            <div class="form-group">
+                <label>Produto (Variante)</label>
+                <select id="fatura-produto" required>
+                    <option value="">Carregando produtos...</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Quantidade</label>
+                <input type="number" id="fatura-quantidade" placeholder="1" min="1" required>
+            </div>
+            
+            <button type="submit">Confirmar Venda</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>Histórico de Vendas</h2>
+        <span class="subtitle">Últimos pedidos realizados no sistema.</span>
+        
+        <div class="table-wrapper">
+            <table id="faturamento-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Cliente</th>
+                        <th>Resumo</th>
+                        <th>Total</th>
+                        <th>Data</th>
+                    </tr>
+                </thead>
+                <tbody id="lista-pedidos-body">
+                    <tr><td colspan="5" style="text-align:center; padding:20px; color:#999;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </main>
 
 <script>
+// 1. Carregar Clientes (DO LOCALSTORAGE) e Produtos (DA API)
 async function carregarDados() {
-    // Carrega clientes
-    const clientes = await fetch("/api/clientes").then(r => r.json());
-    const produtos = await fetch("/produto/catalogo").then(r => r.json());
+    try {
+        // --- AQUI ESTÁ A MÁGICA: LER DO NAVEGADOR ---
+        const clientesLocais = JSON.parse(localStorage.getItem('clientes') || '[]');
+        const clienteSelect = document.getElementById("fatura-cliente");
+        
+        clienteSelect.innerHTML = "<option value=''>Selecione o Cliente</option>";
+        
+        if (clientesLocais.length === 0) {
+            clienteSelect.innerHTML += "<option disabled>Nenhum cliente cadastrado na aba Clientes</option>";
+        } else {
+            clientesLocais.forEach(c => {
+                // Usamos o NOME como valor, pois não temos ID no localstorage
+                clienteSelect.innerHTML += `<option value="${c.nome}">${c.nome}</option>`;
+            });
+        }
 
-    const clienteSelect = document.getElementById("fatura-cliente");
-    const produtoSelect = document.getElementById("fatura-produto");
+        // --- CARREGAR PRODUTOS DA API ---
+        const produtosReq = await fetch("/produto/catalogo");
+        const produtos = await produtosReq.json();
+        const produtoSelect = document.getElementById("fatura-produto");
+        
+        produtoSelect.innerHTML = "<option value=''>Selecione o Produto</option>";
+        
+        // Ordena alfabeticamente
+        produtos.sort((a, b) => a.linha.localeCompare(b.linha));
 
-    clienteSelect.innerHTML = "<option value=''>Selecione Cliente</option>";
-    produtoSelect.innerHTML = "<option value=''>Selecione Variante</option>";
+        produtos.forEach(p => {
+            const estoqueTexto = p.estoque > 0 ? `(Estoque: ${p.estoque})` : `(SEM ESTOQUE)`;
+            const disabled = p.estoque <= 0 ? 'disabled' : '';
+            
+            produtoSelect.innerHTML += `
+                <option value="${p.variante_id}" data-estoque="${p.estoque}" data-preco="${p.preco_base}" ${disabled}>
+                    ${p.linha} ${p.formato} - ${p.cor || ''} ${estoqueTexto} - R$ ${parseFloat(p.preco_base).toFixed(2)}
+                </option>
+            `;
+        });
 
-    clientes.forEach(c => {
-        clienteSelect.innerHTML += `<option value="${c.id}">${c.nome}</option>`;
-    });
-
-    produtos.forEach(p => {
-        produtoSelect.innerHTML += `
-            <option value="${p.variante_id}" data-estoque="${p.estoque}" data-preco="${p.preco_base}">
-                ${p.linha} ${p.formato} (${p.sku}) - Estoque: ${p.estoque}
-            </option>
-        `;
-    });
+        checkProdutoEstoque();
+        
+    } catch (e) {
+        console.error("Erro ao carregar dados:", e);
+    }
 }
 
+// 2. Carregar Tabela de Pedidos
+async function carregarTabelaFaturamentos() {
+    try {
+        const pedidosReq = await fetch("/pedido/listar");
+        const pedidos = await pedidosReq.json();
+        const tbody = document.getElementById("lista-pedidos-body");
+        tbody.innerHTML = "";
+
+        if (!pedidos || pedidos.length === 0) {
+            tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; padding:20px; color:#999;'>Nenhuma venda registrada.</td></tr>";
+            return;
+        }
+
+        pedidos.forEach(p => {
+            const tr = document.createElement("tr");
+            
+            let resumo = "Vários itens";
+            if (p.itens.length > 0) {
+                const item = p.itens[0];
+                resumo = `${item.quantidade}x ${item.sku || 'Produto'}`;
+                if (p.itens.length > 1) resumo += ` (+${p.itens.length - 1})`;
+            }
+
+            const dataFmt = p.created_at ? new Date(p.created_at).toLocaleDateString('pt-BR', {hour: '2-digit', minute:'2-digit'}) : '-';
+
+            tr.innerHTML = `
+                <td><span class="id-tag">#${p.id}</span></td>
+                <td style="font-weight:500;">${p.cliente_nome}</td>
+                <td style="font-size:0.85rem; color:#666;">${resumo}</td>
+                <td class="price-tag">R$ ${parseFloat(p.total).toFixed(2)}</td>
+                <td style="font-size:0.8rem; color:#999;">${dataFmt}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        console.error("Erro tabela:", e);
+    }
+}
+
+// 3. Enviar Venda
 document.getElementById("faturamento-form").addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    const cliente = document.getElementById("fatura-cliente").value;
-    const produto = document.getElementById("fatura-produto");
-    const variante_id = produto.value;
+    const clienteNome = document.getElementById("fatura-cliente").value; // Agora pegamos o NOME
+    const produtoSelect = document.getElementById("fatura-produto");
+    const varianteId = produtoSelect.value;
     const quantidade = parseInt(document.getElementById("fatura-quantidade").value);
 
-    const estoqueDisponivel = parseInt(produto.selectedOptions[0].dataset.estoque);
-    const precoUnit = parseFloat(produto.selectedOptions[0].dataset.preco.replace(",", "."));
-    // 🚨 BLOQUEIA VENDA MAIOR QUE O ESTOQUE
-    if (quantidade > estoqueDisponivel) {
-        alert(`❌ Estoque insuficiente.\nDisponível: ${estoqueDisponivel}\nSolicitado: ${quantidade}`);
+    if (!clienteNome || !varianteId || !quantidade) {
+        alert("Preencha todos os campos!");
+        return;
+    }
+
+    const estoque = parseInt(produtoSelect.selectedOptions[0]?.dataset.estoque || 0);
+    const preco = parseFloat(produtoSelect.selectedOptions[0]?.dataset.preco || 0);
+
+    if (quantidade > estoque) {
+        alert(`Estoque insuficiente! Disponível: ${estoque}`);
         return;
     }
 
     const payload = {
-        cliente_id: cliente,
+        cliente_nome: clienteNome, // Enviando o NOME para o backend
         itens: [{
-            variante_id: variante_id,
+            variante_id: varianteId,
             quantidade: quantidade,
-            preco_unit: precoUnit
+            preco_unit: preco
         }]
     };
 
-    const resposta = await fetch("/pedido/criar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-    });
+    try {
+        const req = await fetch("/pedido/criar", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        
+        const res = await req.json();
 
-    const data = await resposta.json();
-
-    if (data.error) {
-        alert("❌ Erro: " + data.error);
-        return;
+        if (req.ok) {
+            alert(`Venda realizada com sucesso! Pedido #${res.pedido_id}`);
+            e.target.reset();
+            carregarDados();
+            carregarTabelaFaturamentos();
+        } else {
+            alert("Erro: " + (res.error || "Desconhecido"));
+        }
+    } catch (err) {
+        alert("Erro de conexão com o servidor.");
     }
-
-    alert(`✔ Venda registrada!\nTotal: R$ ${data.total}`);
-
-    carregarDados();
-    carregarTabelaFaturamentos();
-    e.target.reset();
 });
 
-document.getElementById("fatura-produto").addEventListener("change", () => {
-    const produto = document.getElementById("fatura-produto");
-    const estoque = produto.selectedOptions[0].dataset.estoque;
+// Utilitário visual para estoque
+function checkProdutoEstoque() {
+    const sel = document.getElementById("fatura-produto");
     const btn = document.querySelector("button[type='submit']");
+    const opt = sel.selectedOptions[0];
 
-    if (estoque <= 0) {
+    if (opt && opt.value && parseInt(opt.dataset.estoque) <= 0) {
         btn.disabled = true;
-        btn.innerText = "Sem estoque";
-        btn.style.background = "#888";
+        btn.innerText = "Sem Estoque";
     } else {
         btn.disabled = false;
-        btn.innerText = "Registrar Venda";
-        btn.style.background = "";
+        btn.innerText = "Confirmar Venda";
     }
+}
+document.getElementById("fatura-produto").addEventListener("change", checkProdutoEstoque);
+
+// Iniciar
+document.addEventListener('DOMContentLoaded', () => {
+    carregarDados();
+    carregarTabelaFaturamentos();
 });
-carregarDados();
 </script>
+
 </body>
 </html>

@@ -4,33 +4,146 @@
 <meta charset="UTF-8">
 <title>Clientes - Mev Glass OS</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+    /* --- ESTILO CLEAN & SUAVE (PADRÃO MEV GLASS) --- */
+    :root {
+        --bg-body: #f8fafc;
+        --bg-card: #ffffff;
+        --input-bg: #ffffff;
+        --border-subtle: #e2e8f0;
+        --text-main: #334155;
+        --text-muted: #64748b;
+        --primary: #0f172a; 
+        --blue-btn: #3b82f6;
+        --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    }
+
+    body {
+        background-color: var(--bg-body);
+        color: var(--text-main);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        margin: 0;
+        padding-bottom: 60px;
+    }
+
+    /* Header */
+    header {
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border-subtle);
+        padding: 15px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    header h1 a { color: var(--primary); text-decoration: none; font-weight: 700; font-size: 1.2rem; }
+    nav a { color: var(--text-muted); text-decoration: none; margin-left: 20px; font-size: 0.9rem; transition: 0.2s; }
+    nav a:hover { color: var(--primary); }
+
+    /* Layout Styles */
+    main { max-width: 600px; margin: 60px auto; padding: 0 20px; } /* Mais estreito para formulário simples */
+
+    /* Card Principal */
+    .card {
+        background: var(--bg-card);
+        padding: 40px;
+        border-radius: 16px;
+        box-shadow: var(--shadow-md);
+        border: 1px solid var(--border-subtle);
+    }
+
+    .page-header { margin-bottom: 30px; text-align: center; }
+    h2 { font-weight: 600; color: var(--primary); margin: 0 0 10px 0; font-size: 1.6rem; }
+    .subtitle { color: var(--text-muted); font-size: 0.95rem; }
+
+    /* Inputs */
+    .form-group { margin-bottom: 20px; }
+    
+    label {
+        display: block;
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin-bottom: 8px;
+        color: var(--text-main);
+    }
+
+    input {
+        width: 100%;
+        padding: 14px 16px;
+        background-color: var(--bg-body);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        color: var(--text-main);
+        font-size: 0.95rem;
+        transition: all 0.2s ease;
+        box-sizing: border-box;
+    }
+    input:focus {
+        background-color: #fff;
+        border-color: var(--blue-btn);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    /* Botão */
+    button[type="submit"] {
+        background-color: var(--primary);
+        color: white;
+        width: 100%;
+        padding: 16px;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 8px;
+        border: none;
+        margin-top: 10px;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+        cursor: pointer;
+        transition: transform 0.1s, background-color 0.2s;
+    }
+    button[type="submit"]:hover {
+        background-color: #1e293b;
+        transform: translateY(-1px);
+    }
+
+</style>
 </head>
 <body>
+
 <header>
-<h1><a href="{{ url_for('inicio_page') }}">prodmanager</a></h1>
-  <nav>
-    <a href="{{ url_for('produtos_page') }}">Produtos</a>
-    <a href="{{ url_for('clientes_page') }}">Clientes</a>
-    <a href="{{url_for('lista_cliente_page')}}">lista clientes</a>
-    <a href="{{ url_for('estoque_page') }}">Estoque</a>
-    <a href="{{ url_for('faturamento_page') }}">Faturamento</a>
-    
-  </nav>
+    <h1><a href="{{ url_for('inicio_page') }}">prodmanager</a></h1>
+    <nav>
+        <a href="{{ url_for('produtos_page') }}">Produtos</a>
+        <a href="{{ url_for('clientes_page') }}">Clientes</a>
+        <a href="{{url_for('lista_cliente_page')}}">Lista Clientes</a>
+        <a href="{{ url_for('estoque_page') }}">Estoque</a>
+        <a href="{{ url_for('faturamento_page') }}">Faturamento</a>
+    </nav>
 </header>
 
 <main>
-  <section>
-    <h2>Cadastro de Clientes</h2>
-    <form id="cliente-form">
-      <input type="text" id="cliente-nome" placeholder="Nome do Cliente" required>
-      <input type="email" id="cliente-email" placeholder="Email" required>
-      <button type="submit">Cadastrar Cliente</button>
-    </form>
-  </section>
+    <div class="card">
+        <div class="page-header">
+            <h2>Cadastro de Clientes</h2>
+            <span class="subtitle">Registre seus clientes para agilizar os pedidos.</span>
+        </div>
+
+        <form id="cliente-form">
+            <div class="form-group">
+                <label for="cliente-nome">Nome Completo</label>
+                <input type="text" id="cliente-nome">
+            </div>
+            
+            <div class="form-group">
+                <label for="cliente-email">E-mail</label>
+                <input type="email" id="cliente-email" placeholder="cliente@email.com" required>
+            </div>
+            
+            <button type="submit">Cadastrar Cliente</button>
+        </form>
+    </div>
 </main>
 
 <script>
-  // Recupera lista existente ou cria nova
+  // Lógica original mantida (LocalStorage)
   let clientes = JSON.parse(localStorage.getItem('clientes') || '[]');
 
   document.getElementById('cliente-form').addEventListener('submit', e => {
@@ -47,11 +160,12 @@
     clientes.push({ nome, email });
     localStorage.setItem('clientes', JSON.stringify(clientes));
 
-    // Alerta estilizado
+    // Alerta estilizado (simples)
     alert(`✅ Cliente "${nome}" cadastrado com sucesso!`);
 
     e.target.reset();
   });
 </script>
+
 </body>
 </html>

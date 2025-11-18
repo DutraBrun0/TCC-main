@@ -5,7 +5,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 # ==========================
 # 👤 Tabela de Usuários
-# (Mantém compatibilidade com seu dump)
 # ==========================
 class Usuario(db.Model):
     __tablename__ = "usuario"
@@ -30,8 +29,7 @@ class Usuario(db.Model):
 
 
 # ==========================
-# 📦 Tabela de Produto (conforme seu dump)
-# Campos: linha, formato, descricao, imagem_url, ativo, timestamps
+# 📦 Tabela de Produto
 # ==========================
 class Produto(db.Model):
     __tablename__ = "produto"
@@ -52,8 +50,7 @@ class Produto(db.Model):
 
 
 # ==========================
-# 🆕 Tabela: Variante (já no seu dump como `variante`)
-# Campos: altura_cm, largura_cm, cor, led_direto, led_indireto, moldura, sku, preco_base, ativo, timestamps
+# 🆕 Tabela: Variante
 # ==========================
 class Variante(db.Model):
     __tablename__ = "variante"
@@ -72,9 +69,8 @@ class Variante(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # relacionamento com estoque (1:1)
+    # Relacionamentos
     estoque = db.relationship("Estoque", uselist=False, backref="variante", lazy=True)
-    # itens de pedidos que usam esta variante
     itens_pedido = db.relationship("ItemPedido", backref="variante", lazy=True)
 
     def __repr__(self):
@@ -82,8 +78,7 @@ class Variante(db.Model):
 
 
 # ==========================
-# 📦 Estoque (ligado à variante) -- tabela 'estoque' no dump
-# Campos: variante_id, quantidade, minimo, updated_at
+# 📦 Estoque
 # ==========================
 class Estoque(db.Model):
     __tablename__ = "estoque"
@@ -101,7 +96,7 @@ class Estoque(db.Model):
 
 
 # ==========================
-# 🧾 Movimento de Estoque (já no dump como movimento_estoque)
+# 🧾 Movimento de Estoque
 # ==========================
 class MovimentoEstoque(db.Model):
     __tablename__ = "movimento_estoque"
@@ -119,7 +114,7 @@ class MovimentoEstoque(db.Model):
 
 
 # ==========================
-# 🧾 Tabela Pedido (conforme dump)
+# 🧾 Tabela Pedido
 # ==========================
 class Pedido(db.Model):
     __tablename__ = "pedido"
@@ -128,7 +123,7 @@ class Pedido(db.Model):
     cliente_nome = db.Column(db.String(255), nullable=False)
     cliente_contato = db.Column(db.String(255), nullable=True)
     status = db.Column(db.Enum('criado','aprovado','em_producao','em_logistica','entregue','finalizado'),
-                       default='criado', nullable=False)
+                            default='criado', nullable=False)
     total = db.Column(db.Numeric(14,2), nullable=False, default=0.00)
     criado_por = db.Column(db.Integer, db.ForeignKey("usuario.id"), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -141,7 +136,7 @@ class Pedido(db.Model):
 
 
 # ==========================
-# 🧾 ItemPedido (usa variante_id no dump)
+# 🧾 ItemPedido
 # ==========================
 class ItemPedido(db.Model):
     __tablename__ = "item_pedido"
@@ -159,12 +154,13 @@ class ItemPedido(db.Model):
 
 
 # ==========================
-# Utility functions to manage stock per variant (SKU)
+# Funções Utilitárias de Estoque (MODIFICADAS PARA TRANSAÇÃO SEGURA)
 # ==========================
-def registrar_entrada_variante(variante_id: int, quantidade: int, usuario_id: int = None, motivo: str = "Entrada manual"):
+
+def registrar_entrada_variante(variante_id: int, quantidade: int, usuario_id: int = None, motivo: str = "Entrada manual", commit=False):
     """
-    Registra entrada no estoque para uma variante. Cria registro de estoque caso não exista.
-    Retorna a nova quantidade.
+    Registra entrada no estoque.
+    IMPORTANTE: Por padrão, NÃO commita (commit=False). Quem chamar deve dar db.session.commit().
     """
     estoque = Estoque.query.filter_by(variante_id=variante_id).first()
     if not estoque:
@@ -186,11 +182,18 @@ def registrar_entrada_variante(variante_id: int, quantidade: int, usuario_id: in
     estoque.quantidade = estoque.quantidade + int(quantidade)
     estoque.updated_at = datetime.utcnow()
 
-    db.session.commit()
+    # Só salva se for explicitamente solicitado (útil para rotas simples de ajuste manual)
+    if commit:
+        db.session.commit()
+        
     return int(estoque.quantidade)
 
 
-def registrar_saida_variante(variante_id, quantidade, usuario_id=None, motivo="Saída"):
+def registrar_saida_variante(variante_id, quantidade, usuario_id=None, motivo="Saída", commit=False):
+    """
+    Registra saída do estoque.
+    IMPORTANTE: Por padrão, NÃO commita. Isso permite que seja usada dentro do loop de Pedido.
+    """
     variante = Variante.query.get(variante_id)
     if not variante:
         raise ValueError("Variante não encontrada")
@@ -211,7 +214,7 @@ def registrar_saida_variante(variante_id, quantidade, usuario_id=None, motivo="S
     estoque.quantidade -= quantidade
     estoque.updated_at = datetime.utcnow()
 
-    # registrar movimento SEM ERRO
+    # registrar movimento
     movimento = MovimentoEstoque(
         estoque_id=estoque.id,
         usuario_id=usuario_id if usuario_id else None,
@@ -221,10 +224,12 @@ def registrar_saida_variante(variante_id, quantidade, usuario_id=None, motivo="S
     )
 
     db.session.add(movimento)
-    db.session.flush()   # 🟢 garante que o movimento é criado
+    
+    # IMPORTANTE: Apenas Flush, não Commit, a menos que forçado.
+    # Isso garante que o Pedido possa comitar tudo de uma vez.
+    db.session.flush() 
 
-    # commit FINAL
-    db.session.commit()
+    if commit:
+        db.session.commit()
 
     return estoque.quantidade
-
