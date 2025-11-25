@@ -212,5 +212,61 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 </script>
+<style>
+    /* Estilos do Widget de Perfil */
+    .profile-widget {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        background: #ffffff;
+        padding: 10px 15px;
+        border-radius: 50px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid #e2e8f0;
+        z-index: 9999;
+        font-family: 'Inter', sans-serif;
+    }
+    .profile-avatar {
+        width: 38px;
+        height: 38px;
+        background: #0f172a; /* Cor escura elegante */
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 14px;
+        text-transform: uppercase;
+    }
+    .profile-info { display: flex; flex-direction: column; }
+    .profile-name { font-size: 14px; font-weight: 600; color: #333; line-height: 1.2; text-transform: capitalize; }
+    .profile-role { font-size: 11px; color: #777; }
+    .btn-logout {
+        margin-left: 8px; background: #fee2e2; color: #ef4444; border: none;
+        width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 12px; transition: 0.2s;
+    }
+    .btn-logout:hover { background: #ef4444; color: white; }
+    a.logout-link { text-decoration: none; display: flex; }
+</style>
+
+<div class="profile-widget">
+    <div class="profile-avatar">
+        {{ nome_usuario[0] if nome_usuario else 'U' }}
+    </div>
+    <div class="profile-info">
+        <span class="profile-name">{{ nome_usuario }}</span>
+        <span class="profile-role">Administrador</span>
+    </div>
+    
+    <a href="/logout" class="logout-link" title="Sair da conta">
+        <button class="btn-logout">✕</button>
+    </a>
+</div>
 </body>
 </html>

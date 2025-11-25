@@ -1,5 +1,4 @@
-# app.py  (SUBSTITUA TODO O ARQUIVO PELO CONTEÚDO ABAIXO)
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import init_app, db
 from models import (
@@ -18,21 +17,33 @@ TEMPLATE_DIR = os.path.join(BASE_DIR, "../frontend")
 app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=TEMPLATE_DIR)
 init_app(app)
 
+# 🔴 NOVO: CHAVE SECRETA OBRIGATÓRIA PARA SESSÕES
+app.secret_key = "a_chave_secreta_segura_para_mev_glass"
+
 # -------------------
-# Páginas (mantém as suas)
+# Páginas (com verificação de login no /inicio)
 # -------------------
 @app.route("/inicio")
 def inicio_page():
-    return render_template("inicio.html")
+    # 🟢 NOVO: Se não estiver logado, redireciona para o login
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    
+    # Envia o nome do usuário logado para o template
+    return render_template("inicio.html", nome_usuario=session.get('user_nome'))
 
 @app.route("/")
 def index():
+    # Se já estiver logado, redireciona para o início
+    if 'user_id' in session:
+        return redirect(url_for('inicio_page'))
     return render_template("login.html")
 
 @app.route("/register_page")
 def register_page():
     return render_template("criar_conta.html")
 
+# Rotas que não mudam (mantidas por segurança)
 @app.route("/produtos")
 def produtos_page():
     return render_template("produtos.html")
@@ -59,7 +70,7 @@ def dashboard_page():
 
 
 # -------------------
-# Util: gerar SKU simples (base do nome + partes das opções)
+# Util: gerar SKU simples
 # -------------------
 def gerar_sku_from_fields(produto_linha: str, altura=None, largura=None, cor=None, moldura=None):
     base = re.sub(r'[^A-Za-z0-9]', '', produto_linha[:3]).upper()
@@ -77,8 +88,9 @@ def gerar_sku_from_fields(produto_linha: str, altura=None, largura=None, cor=Non
 
 
 # -------------------
-# Rotas de autenticação / registro (mantive sua lógica)
+# Rotas de autenticação / registro
 # -------------------
+
 @app.route("/register", methods=["POST"])
 def register():
     data = request.get_json()
@@ -123,7 +135,20 @@ def login():
     if not check_password_hash(user.senha_hash, senha):
         return jsonify(status="erro", mensagem="Senha incorreta"), 401
 
+    # 🟢 NOVO: Salva dados na Sessão do Flask (Server-Side)
+    session['user_id'] = user.id
+    session['user_nome'] = user.nome
+    session['user_email'] = user.email
+
+    # Não precisa retornar o nome no JSON, o Flask Session cuida do estado
     return jsonify(status="ok", mensagem="Login realizado com sucesso")
+
+
+@app.route("/logout")
+def logout():
+    # 🟢 NOVO: Limpa a sessão e redireciona para o login
+    session.clear()
+    return redirect(url_for('index'))
 
 
 # -------------------
@@ -139,19 +164,12 @@ def teste_db():
 
 
 # -------------------
-# Endpoints novos: CRUD para produto/variantes e controle de estoque por SKU
+# Endpoints CRUD, Estoque, Pedidos e Atividades (Mantidos)
 # -------------------
 @app.route("/produto/variantes", methods=["POST"])
 def criar_produto_com_variantes():
     """
-    Espera JSON:
-    {
-      "linha": "Espelho Lux",
-      "formato": "Retangular",
-      "descricao": "...",
-      "imagem_url": "...",
-      "variantes": [ { altura_cm, largura_cm, cor, led_direto, led_indireto, moldura, preco_base, estoque_inicial }, ... ]
-    }
+    Cria um novo produto e suas variantes.
     """
     data = request.get_json()
     if not data:
@@ -174,7 +192,7 @@ def criar_produto_com_variantes():
     )
     try:
         db.session.add(produto)
-        db.session.flush()  # para obter produto.id
+        db.session.flush()
 
         resposta_variantes = []
         for v in variantes:
@@ -187,7 +205,6 @@ def criar_produto_com_variantes():
 
             sku_base = gerar_sku_from_fields(linha, altura, largura, cor, moldura)
             sku = sku_base
-            # garantir SKU único
             i = 1
             while Variante.query.filter_by(sku=sku).first():
                 i += 1
@@ -208,7 +225,6 @@ def criar_produto_com_variantes():
             db.session.add(variante)
             db.session.flush()
 
-            # criar estoque associado
             estoque = Estoque(
                 variante_id=variante.id,
                 quantidade=estoque_inicial,
@@ -232,9 +248,7 @@ def criar_produto_com_variantes():
 
 @app.route("/produto/catalogo", methods=["GET"])
 def listar_catalogo():
-    """
-    Retorna todas as variantes ativas com dados do produto e estoque.
-    """
+    """ Retorna todas as variantes ativas com dados do produto e estoque. """
     q = db.session.query(Produto, Variante, Estoque) \
         .join(Variante, Variante.produto_id == Produto.id) \
         .outerjoin(Estoque, Estoque.variante_id == Variante.id) \
@@ -269,8 +283,8 @@ def listar_variantes_estoque():
         resp.append({
             "variante_id": v.id,
             "produto_id": v.produto_id,
-            "nome_produto": v.produto.linha,     # 🟩 AQUI!
-            "formato": v.produto.formato,        # opcional
+            "nome_produto": v.produto.linha,
+            "formato": v.produto.formato,
             "sku": v.sku,
             "altura_cm": float(v.altura_cm) if v.altura_cm is not None else None,
             "largura_cm": float(v.largura_cm) if v.largura_cm is not None else None,
@@ -284,9 +298,7 @@ def listar_variantes_estoque():
 
 @app.route("/estoque/entrada_sku", methods=["POST"])
 def entrada_sku():
-    """
-    Payload: { "variante_id": 1, "quantidade": 5, "usuario_id": 1, "motivo": "compra" }
-    """
+    """ Payload: { "variante_id": 1, "quantidade": 5, "usuario_id": 1, "motivo": "compra" } """
     data = request.get_json()
     variante_id = data.get("variante_id")
     quantidade = int(data.get("quantidade", 0))
@@ -305,9 +317,7 @@ def entrada_sku():
 
 @app.route("/estoque/saida_sku", methods=["POST"])
 def saida_sku():
-    """
-    Payload: { "variante_id": 1, "quantidade": 2, "usuario_id": 1, "motivo": "venda" }
-    """
+    """ Payload: { "variante_id": 1, "quantidade": 2, "usuario_id": 1, "motivo": "venda" } """
     data = request.get_json()
     variante_id = data.get("variante_id")
     quantidade = int(data.get("quantidade", 0))
@@ -326,15 +336,9 @@ def saida_sku():
         return jsonify({"status": "erro", "mensagem": str(e)}), 500
 
 
-# -------------------
-# Compatibilidade: manter /estoque/entrada (produto_id) se alguém ainda usar
-# -------------------
 @app.route("/estoque/entrada", methods=["POST"])
 def entrada_estoque_compat():
-    """
-    Endpoint legado: tenta localizar variante pelo produto e incrementar estoque da primeira variante.
-    Payload antigo: { "produto_id": X, "quantidade": Y, "usuario_id": Z }
-    """
+    """ Endpoint legado: tenta localizar variante pelo produto e incrementar estoque da primeira variante. """
     data = request.get_json()
     produto_id = data.get("produto_id")
     quantidade = int(data.get("quantidade", 0))
@@ -343,7 +347,6 @@ def entrada_estoque_compat():
     if not produto_id or quantidade <= 0:
         return jsonify({"status": "erro", "mensagem": "produto_id and quantidade>0 required"}), 400
 
-    # pega primeira variante ativa do produto (comportamento de compatibilidade)
     variante = Variante.query.filter_by(produto_id=produto_id, ativo=True).first()
     if not variante:
         return jsonify({"status": "erro", "mensagem": "Nenhuma variante encontrada para o produto"}), 404
@@ -355,9 +358,6 @@ def entrada_estoque_compat():
         return jsonify({"status": "erro", "mensagem": str(e)}), 400
 
 
-# -------------------
-# Pedido confirmar (compatibilidade) — deduz estoque usando variante_id do item_pedido
-# -------------------
 @app.route("/pedido/confirmar", methods=["POST"])
 def confirmar_pedido():
     data = request.get_json()
@@ -378,9 +378,6 @@ def confirmar_pedido():
         return jsonify({"status": "erro", "mensagem": str(e)}), 400
 
 
-# -------------------
-# API Clientes (lista)
-# -------------------
 @app.route('/api/clientes', methods=['GET'])
 def api_clientes():
     clientes = Usuario.query.all()
@@ -394,35 +391,25 @@ def api_clientes():
     ])
 
 
-# -------------------
-# Criar pedido via API (grava pedido, itens e atualiza estoque)
-# -------------------
 @app.route('/pedido/criar', methods=['POST'])
 def criar_pedido():
     data = request.get_json()
 
-    # 1. AGORA ACEITAMOS O NOME (Vindo do LocalStorage)
-    # Em vez de buscar 'cliente_id', buscamos 'cliente_nome'
     cliente_nome = data.get("cliente_nome")
     
-    # Fallback: Se por acaso vier um ID (sistema antigo), converte para string
     if not cliente_nome and data.get("cliente_id"):
         cliente_nome = f"Cliente ID {data.get('cliente_id')}"
 
     itens = data.get("itens", [])
 
-    # Validação atualizada
     if not cliente_nome:
         return jsonify({"error": "Nome do cliente é obrigatório"}), 400
     if not itens:
         return jsonify({"error": "Nenhum item no pedido"}), 400
 
-    # Define um usuário padrão (Admin) para o campo 'criado_por' 
-    # já que não estamos usando sistema complexo de login na venda
     usuario_responsavel = 1 
 
     try:
-        # Cria o Pedido com o NOME
         pedido = Pedido(
             cliente_nome=cliente_nome, 
             cliente_contato=None,
@@ -432,7 +419,7 @@ def criar_pedido():
         )
 
         db.session.add(pedido)
-        db.session.flush() # Gera o ID do pedido
+        db.session.flush()
 
         total_geral = 0
 
@@ -441,7 +428,6 @@ def criar_pedido():
             quantidade = item.get("quantidade")
             preco_unit = item.get("preco_unit")
 
-            # Validações do item
             if not variante_id or not quantidade:
                 db.session.rollback()
                 return jsonify({"error": "Dados do item incompletos"}), 400
@@ -449,7 +435,6 @@ def criar_pedido():
             quantidade = int(quantidade)
             preco_unit = float(preco_unit)
 
-            # Baixa de Estoque
             estoque_registro = Estoque.query.filter_by(variante_id=variante_id).first()
             
             if not estoque_registro:
@@ -463,7 +448,6 @@ def criar_pedido():
             estoque_registro.quantidade -= quantidade
             db.session.add(estoque_registro)
 
-            # Cria item do pedido
             item_pedido = ItemPedido(
                 pedido_id=pedido.id,
                 variante_id=variante_id,
@@ -487,14 +471,10 @@ def criar_pedido():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
-# -------------------
-# Listar pedidos (para faturamento / dashboard)
-# -------------------
+
 @app.route('/pedido/listar', methods=['GET'])
 def listar_pedidos():
-    """
-    Lista pedidos com itens e informações das variantes.
-    """
+    """ Lista pedidos com itens e informações das variantes. """
     pedidos = Pedido.query.order_by(Pedido.created_at.desc()).limit(100).all()
     resultado = []
 
@@ -520,21 +500,16 @@ def listar_pedidos():
 
     return jsonify(resultado)
 
-# COLAR ISSO NO FINAL DO SEU app.py (Antes do app.run)
-
 @app.route("/variante/excluir/<int:id>", methods=["DELETE"])
 def excluir_variante(id):
     try:
-        # Busca a variante
         variante = Variante.query.get(id)
         if not variante:
             return jsonify({"status": "erro", "mensagem": "Variante não encontrada"}), 404
         
-        # Verifica se tem estoque ligado a ela e zera (opcional, mas recomendado)
         if variante.estoque:
             variante.estoque.quantidade = 0
             
-        # Marca como inativo (Exclusão lógica)
         variante.ativo = False
         
         db.session.commit()
@@ -563,7 +538,7 @@ def api_atividades_recentes():
                 nome_exemplo = "(Produto Excluído)"
 
         atividades.append({
-            "id": p.id,   # <--- IMPORTANTE: Agora enviamos o ID
+            "id": p.id,
             "tipo": "venda",
             "icone": "💰",
             "titulo": "Venda Realizada",
@@ -585,7 +560,7 @@ def api_atividades_recentes():
             qtd_inicial = v.estoque.quantidade
 
         atividades.append({
-            "id": v.id, # <--- ID aqui também
+            "id": v.id,
             "tipo": "cadastro",
             "icone": "✨",
             "titulo": "Novo Produto",
@@ -598,7 +573,6 @@ def api_atividades_recentes():
     return jsonify(atividades[:50])
 
 
-# 2. ADICIONE ESTA NOVA ROTA NO FINAL DO ARQUIVO (Para deletar a venda):
 @app.route("/pedido/excluir/<int:id>", methods=["DELETE"])
 def excluir_pedido(id):
     try:
@@ -606,10 +580,8 @@ def excluir_pedido(id):
         if not pedido:
             return jsonify({"status": "erro", "mensagem": "Pedido não encontrado"}), 404
         
-        # Primeiro deleta os itens do pedido
         ItemPedido.query.filter_by(pedido_id=id).delete()
         
-        # Depois deleta o pedido
         db.session.delete(pedido)
         db.session.commit()
         
@@ -618,20 +590,11 @@ def excluir_pedido(id):
         db.session.rollback()
         return jsonify({"status": "erro", "mensagem": str(e)}), 500
 
-# =====================================================
-# 🧹 ROTA PARA LIMPAR TODO O HISTÓRICO DE VENDAS
-# Use isso para zerar as notificações de vendas antigas
-# =====================================================
 @app.route("/admin/limpar_todas_vendas")
 def limpar_todas_vendas():
     try:
-        # 1. Apagar todos os itens dos pedidos (tabela filha)
         num_itens = db.session.query(ItemPedido).delete()
-        
-        # 2. Apagar todos os pedidos (tabela pai)
         num_pedidos = db.session.query(Pedido).delete()
-        
-        # 3. Confirma a exclusão
         db.session.commit()
         
         return jsonify({
@@ -641,6 +604,8 @@ def limpar_todas_vendas():
     except Exception as e:
         db.session.rollback()
         return jsonify({"status": "erro", "mensagem": str(e)}), 500
+
+
 # -------------------
 # Run
 # -------------------
