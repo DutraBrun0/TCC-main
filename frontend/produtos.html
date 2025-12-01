@@ -296,7 +296,6 @@ document.getElementById("produto-form").addEventListener("submit", async (e) => 
   const linha = document.getElementById("produto-linha").value;
   const formato = document.getElementById("produto-formato").value;
   const descricao = document.getElementById("produto-descricao").value;
-  const imagem_url = document.getElementById("produto-imagem").value;
 
   let variantsData = [];
   document.querySelectorAll(".variant-box").forEach(box => {
@@ -313,7 +312,7 @@ document.getElementById("produto-form").addEventListener("submit", async (e) => 
   });
 
   const payload = {
-    linha, formato, descricao, imagem_url, variantes: variantsData
+    linha, formato, descricao, variantes: variantsData
   };
 
   try {
